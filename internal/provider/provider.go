@@ -10,8 +10,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
-var diags diag.Diagnostics
-
 func init() {
 	schema.DescriptionKind = schema.StringMarkdown
 }
@@ -21,30 +19,26 @@ func New(version string) func() *schema.Provider {
 		p := &schema.Provider{
 			Schema: map[string]*schema.Schema{
 				"tenant_id": {
-					Description: "The Tenant ID which should be used. This can also be sourced from the `AZRGRAPH_TENANT_ID` Environment Variable.",
+					Description: "The tenant ID used for service-principal authentication or as the default tenant for Azure Default Credential. This can also be sourced from the `AZRGRAPH_TENANT_ID` environment variable.",
 					Type:        schema.TypeString,
 					Optional:    true,
 					DefaultFunc: schema.EnvDefaultFunc("AZRGRAPH_TENANT_ID", nil),
 				},
 				"client_id": {
-					Description: "The Client ID which should be used. This can also be sourced from the `AZRGRAPH_CLIENT_ID` Environment Variable.",
+					Description: "The client ID used for service-principal authentication. This can also be sourced from the `AZRGRAPH_CLIENT_ID` environment variable.",
 					Type:        schema.TypeString,
 					Optional:    true,
 					DefaultFunc: schema.EnvDefaultFunc("AZRGRAPH_CLIENT_ID", nil),
 				},
 				"client_secret": {
-					Description: "The Client Secret which should be used. This can also be sourced from the `AZRGRAPH_CLIENT_SECRET` Environment Variable.",
+					Description: "The client secret used for service-principal authentication. This can also be sourced from the `AZRGRAPH_CLIENT_SECRET` environment variable.",
 					Type:        schema.TypeString,
 					Optional:    true,
 					Sensitive:   true,
 					DefaultFunc: schema.EnvDefaultFunc("AZRGRAPH_CLIENT_SECRET", nil),
 				},
 				"use_azure_default_credential": {
-					Description: "Use Azure Default Credential for authentication. " +
-						"If this is true, the provider will try to authenticate using the following mechanisms in order:" +
-						"Environment variables > Workload identity > Managed Identity > Azure CLI > Azure Developer CLI " +
-						"This can also be sourced from the `AZRGRAPH_USE_AZURE_DEFAULT_CREDENTIAL` Environment Variable. " +
-						"Note, that the Client Secret flow will take precedence over the Azure Default Credential. Defaults to true.",
+					Description: "Use Azure Default Credential for authentication. The default chain tries environment credentials, workload identity, managed identity, Azure CLI, Azure Developer CLI, and Azure PowerShell, in that order. The `AZURE_TOKEN_CREDENTIALS` environment variable can restrict the chain. Complete service-principal credentials take precedence. This can also be sourced from the `AZRGRAPH_USE_AZURE_DEFAULT_CREDENTIAL` environment variable. Defaults to true.",
 					Type:        schema.TypeBool,
 					Optional:    true,
 					DefaultFunc: schema.EnvDefaultFunc("AZRGRAPH_USE_AZURE_DEFAULT_CREDENTIAL", true),
@@ -56,55 +50,55 @@ func New(version string) func() *schema.Provider {
 			ResourcesMap: map[string]*schema.Resource{},
 		}
 
-		p.ConfigureContextFunc = configure(version, p)
+		p.ConfigureContextFunc = configure
 
 		return p
 	}
 }
 
-type clients struct {
-	resourceGraph armresourcegraph.Client
+type resourceGraphClient interface {
+	Resources(context.Context, armresourcegraph.QueryRequest, *armresourcegraph.ClientResourcesOptions) (armresourcegraph.ClientResourcesResponse, error)
 }
 
-func configure(version string, p *schema.Provider) func(context.Context, *schema.ResourceData) (interface{}, diag.Diagnostics) {
-	return func(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
+type clients struct {
+	resourceGraph resourceGraphClient
+}
 
-		clientID := d.Get("client_id").(string)
-		clientSecret := d.Get("client_secret").(string)
-		tenantID := d.Get("tenant_id").(string)
-		useDefaultCred := d.Get("use_azure_default_credential").(bool)
+func configure(_ context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
+	clientID := d.Get("client_id").(string)
+	clientSecret := d.Get("client_secret").(string)
+	tenantID := d.Get("tenant_id").(string)
+	useDefaultCredential := d.Get("use_azure_default_credential").(bool)
 
-		var cred azcore.TokenCredential
-		var err error
-
-		if clientID != "" && clientSecret != "" && tenantID != "" {
-			// Client secret credentials
-			cred, err = azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
-			if err != nil {
-				diags = append(diags, diag.Errorf("unable to create ClientSecretCredential: %v", err)...)
-				return nil, diags
-			}
-		} else if useDefaultCred {
-			// Azure Default Credential
-			cred, err = azidentity.NewDefaultAzureCredential(nil)
-			if err != nil {
-				diags = append(diags, diag.Errorf("unable to create DefaultAzureCredential: %v", err)...)
-				return nil, diags
-			}
-		} else {
-			diags = append(diags, diag.Errorf("no authenticaton credenials provided")...)
-			return nil, diags
-		}
-
-		clientFactory, err := armresourcegraph.NewClientFactory(cred, nil)
-		if err != nil {
-			diags = append(diags, diag.Errorf("unable to create client factory: %v", err)...)
-			return nil, diags
-		}
-		client := clientFactory.NewClient()
-
-		return &clients{
-			resourceGraph: *client,
-		}, nil
+	hasClientID := clientID != ""
+	hasClientSecret := clientSecret != ""
+	if hasClientID != hasClientSecret || (hasClientID && tenantID == "") {
+		return nil, diag.Errorf("client_id, client_secret, and tenant_id must all be set to use service-principal authentication")
 	}
+
+	var (
+		credential azcore.TokenCredential
+		err        error
+	)
+
+	switch {
+	case hasClientID:
+		credential, err = azidentity.NewClientSecretCredential(tenantID, clientID, clientSecret, nil)
+	case useDefaultCredential:
+		credential, err = azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
+			TenantID: tenantID,
+		})
+	default:
+		return nil, diag.Errorf("no authentication credentials provided")
+	}
+	if err != nil {
+		return nil, diag.Errorf("unable to create Azure credential: %v", err)
+	}
+
+	clientFactory, err := armresourcegraph.NewClientFactory(credential, nil)
+	if err != nil {
+		return nil, diag.Errorf("unable to create Resource Graph client factory: %v", err)
+	}
+
+	return &clients{resourceGraph: clientFactory.NewClient()}, nil
 }

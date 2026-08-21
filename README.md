@@ -1,52 +1,80 @@
 # Terraform Provider for Azure Resource Graph (`azresourcegraph`)
 
-This provider allows you to query [Azure Resource Graph](https://docs.microsoft.com/en-us/azure/governance/resource-graph/overview)
-and use the results together with other `Terraform` providers.
+[![Tests](https://github.com/nikhil-pandey/terraform-provider-azresourcegraph/actions/workflows/test.yml/badge.svg)](https://github.com/nikhil-pandey/terraform-provider-azresourcegraph/actions/workflows/test.yml)
+
+This repository is a maintained fork of [`tiwood/terraform-provider-azresourcegraph`](https://github.com/tiwood/terraform-provider-azresourcegraph). It preserves the original provider's history while continuing development and releases under the `nikhil-pandey` namespace.
+
+The provider queries [Azure Resource Graph](https://learn.microsoft.com/azure/governance/resource-graph/overview) and exposes results for use with other Terraform providers and modules.
 
 ## Requirements
 
--	[Terraform](https://www.terraform.io/downloads.html) >= 0.13.x
--	[Go](https://golang.org/doc/install) >= 1.26
+- Terraform 1.0 or newer
+- Go 1.26 or newer for development; the repository selects Go 1.26.7 locally and CI tracks the latest Go 1.26 patch
 
-## Building The Provider
+## Usage
 
-1. Clone the repository
-1. Enter the repository directory
-1. Build the provider using the Go `install` command: 
+```terraform
+terraform {
+  required_providers {
+    azresourcegraph = {
+      source = "nikhil-pandey/azresourcegraph"
+    }
+  }
+}
+
+provider "azresourcegraph" {}
+
+data "azresourcegraph_query" "resource_ids" {
+  query = "Resources | project id"
+}
+
+output "resource_ids" {
+  value = jsondecode(data.azresourcegraph_query.resource_ids.result)
+}
+```
+
+## Authentication
+
+Azure Default Credential is enabled by default. Its chain includes environment credentials, workload identity, managed identity, Azure CLI, Azure Developer CLI, and Azure PowerShell. `AZURE_TOKEN_CREDENTIALS` can restrict the chain.
+
+An optional `tenant_id` is passed to Azure Default Credential as its default tenant:
+
+```terraform
+provider "azresourcegraph" {
+  tenant_id = var.tenant_id
+}
+```
+
+Service-principal authentication takes precedence when all three values are set:
+
+```terraform
+provider "azresourcegraph" {
+  tenant_id     = var.tenant_id
+  client_id     = var.client_id
+  client_secret = var.client_secret
+}
+```
+
+Provider settings can also be sourced from `AZRGRAPH_TENANT_ID`, `AZRGRAPH_CLIENT_ID`, `AZRGRAPH_CLIENT_SECRET`, and `AZRGRAPH_USE_AZURE_DEFAULT_CREDENTIAL`.
+
+## Development
+
 ```sh
-$ go install
+go mod download
+go mod verify
+go test -race -cover ./...
+go vet ./...
+go generate ./...
 ```
 
-## Adding Dependencies
+`go generate ./...` requires Terraform on `PATH` and updates the generated Registry documentation in `docs/`.
 
-This provider uses [Go modules](https://github.com/golang/go/wiki/Modules).
-Please see the Go documentation for the most up to date information about using Go modules.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete workflow and [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
-To add a new dependency `github.com/author/dependency` to your Terraform provider:
+## Releases
 
-```
-go get github.com/author/dependency
-go mod tidy
-```
+Tags matching `v*` run GoReleaser and publish signed Terraform Registry artifacts. Maintainers must configure the `GPG_PRIVATE_KEY` and `PASSPHRASE` repository secrets before creating a release tag.
 
-Then commit the changes to `go.mod` and `go.sum`.
+## License
 
-## Using the provider
-
-Fill this in for each provider
-
-## Developing the Provider
-
-If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
-
-To compile the provider, run `go install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
-
-To generate or update documentation, run `go generate`.
-
-In order to run the full suite of Acceptance tests, run `make testacc`.
-
-*Note:* Acceptance tests create real resources, and often cost money to run.
-
-```sh
-$ make testacc
-```
+Mozilla Public License 2.0. See [LICENSE](LICENSE).

@@ -4,8 +4,11 @@
 example.tf
 terraform.tfplan
 terraform.tfstate
+terraform.tfstate.*
+.terraform.lock.hcl
 bin/
 dist/
+coverage.out
 /vendor/
 modules-dev/
 /pkg/
@@ -24,7 +27,7 @@ website/node_modules
 .idea
 *.iml
 *.test
-*.iml
+.env
 
 website/vendor
 

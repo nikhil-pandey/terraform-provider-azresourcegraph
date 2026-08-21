@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/nikhil-pandey/terraform-provider-azresourcegraph/security/advisories/new
+    about: Report suspected vulnerabilities privately.
+  - name: Terraform community support
+    url: https://discuss.hashicorp.com/c/terraform-core/27
+    about: Ask general Terraform usage questions.

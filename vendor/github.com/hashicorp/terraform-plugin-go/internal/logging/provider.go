@@ -1,3 +1,6 @@
+// Copyright IBM Corp. 2020, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package logging
 
 import (
@@ -8,8 +11,7 @@ import (
 )
 
 func ProviderLoggerName(providerAddress string) string {
-	provider, err := tfaddr.ParseRawProviderSourceString(providerAddress)
-
+	provider, err := tfaddr.ParseProviderSource(providerAddress)
 	if err != nil {
 		log.Printf("[ERROR] Error parsing provider name %q: %s", providerAddress, err)
 		return ""

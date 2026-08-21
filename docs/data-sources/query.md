@@ -55,5 +55,3 @@ QUERY
 
 - `id` (String) The ID of this resource.
 - `result` (String) The queries output in raw json format.
-
-

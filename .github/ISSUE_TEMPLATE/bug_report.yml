@@ -1,0 +1,76 @@
+name: Bug report
+description: Report incorrect provider behavior or a regression
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve the Azure Resource Graph provider. Do not include credentials, tokens, or unredacted Terraform state.
+  - type: input
+    id: provider-version
+    attributes:
+      label: Provider version
+      placeholder: 0.4.0
+    validations:
+      required: true
+  - type: input
+    id: terraform-version
+    attributes:
+      label: Terraform version
+      placeholder: 1.15.9
+    validations:
+      required: true
+  - type: dropdown
+    id: authentication
+    attributes:
+      label: Authentication method
+      options:
+        - Azure Default Credential
+        - Service principal client secret
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Minimal Terraform configuration
+      render: hcl
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `terraform init`
+        2. Run `terraform plan`
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant redacted logs
+      description: Set TF_LOG_PROVIDER when useful, and remove secrets or tokens before attaching output.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for duplicates.
+          required: true
+        - label: I removed credentials, access tokens, and sensitive state from this report.
+          required: true

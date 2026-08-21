@@ -4,7 +4,7 @@ import (
 	"flag"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/plugin"
-	"github.com/tiwood/terraform-provider-azresourcegraph/internal/provider"
+	"github.com/nikhil-pandey/terraform-provider-azresourcegraph/internal/provider"
 )
 
 // Run "go generate" to format example terraform files and generate the docs for the registry/website
@@ -35,7 +35,7 @@ func main() {
 	opts := &plugin.ServeOpts{
 		Debug: debugMode,
 
-		ProviderAddr: "registry.terraform.io/tiwood/azresourcegraph",
+		ProviderAddr: "registry.terraform.io/nikhil-pandey/azresourcegraph",
 
 		ProviderFunc: provider.New(version),
 	}

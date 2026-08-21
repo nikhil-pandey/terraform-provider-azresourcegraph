@@ -1,4 +1,14 @@
-##  (2024-08-05)
+# Changelog
+
+## Unreleased
+
+### Changed
+
+* Adopted and documented the maintained `nikhil-pandey` fork and Registry namespace.
+* Updated dependencies, removed committed vendoring, and pinned a maintained Go toolchain.
+* Hardened authentication validation, query pagination, deterministic IDs, tests, CI, and releases.
+
+Historical entries below were inherited from the upstream project.
 
 ## 0.3.0 (2024-08-05)
 

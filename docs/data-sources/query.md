@@ -54,4 +54,4 @@ QUERY
 ### Read-Only
 
 - `id` (String) The ID of this resource.
-- `result` (String) The queries output in raw json format.
+- `result` (String) The query output in raw JSON format.

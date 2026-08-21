@@ -7,12 +7,24 @@ description: |-
 
 # azresourcegraph Provider
 
-This provider allows you to query [Azure Resource Graph](https://docs.microsoft.com/en-us/azure/governance/resource-graph/overview)
+> This provider is maintained at `nikhil-pandey/terraform-provider-azresourcegraph` as a fork of the original `tiwood` provider.
+
+This provider allows you to query [Azure Resource Graph](https://learn.microsoft.com/azure/governance/resource-graph/overview)
 and use the results together with other `Terraform` providers.
 
 ## Example Usage
 
 ```terraform
+terraform {
+  required_version = ">= 1.0"
+
+  required_providers {
+    azresourcegraph = {
+      source = "nikhil-pandey/azresourcegraph"
+    }
+  }
+}
+
 # Authentication using Client Credentials
 provider "azresourcegraph" {
   tenant_id     = var.tenant_id
@@ -22,9 +34,11 @@ provider "azresourcegraph" {
 
 # Authentication using Azure Default Credential
 # 1. Environment Variables
-# 2. Managed Identity
-# 3. Azure CLI
-# 4. Azure Developer CLI
+# 2. Workload Identity
+# 3. Managed Identity
+# 4. Azure CLI
+# 5. Azure Developer CLI
+# 6. Azure PowerShell
 provider "azresourcegraph" {
   use_azure_default_credential = true
 }
@@ -35,7 +49,7 @@ provider "azresourcegraph" {
 
 ### Optional
 
-- `client_id` (String) The Client ID which should be used. This can also be sourced from the `AZRGRAPH_CLIENT_ID` Environment Variable.
-- `client_secret` (String, Sensitive) The Client Secret which should be used. This can also be sourced from the `AZRGRAPH_CLIENT_SECRET` Environment Variable.
-- `tenant_id` (String) The Tenant ID which should be used. This can also be sourced from the `AZRGRAPH_TENANT_ID` Environment Variable.
-- `use_azure_default_credential` (Boolean) Use Azure Default Credential for authentication. If this is true, the provider will try to authenticate using the following mechanisms in order:Environment variables > Workload identity > Managed Identity > Azure CLI > Azure Developer CLI This can also be sourced from the `AZRGRAPH_USE_AZURE_DEFAULT_CREDENTIAL` Environment Variable. Note, that the Client Secret flow will take precedence over the Azure Default Credential. Defaults to true.
+- `client_id` (String) The client ID used for service-principal authentication. This can also be sourced from the `AZRGRAPH_CLIENT_ID` environment variable.
+- `client_secret` (String, Sensitive) The client secret used for service-principal authentication. This can also be sourced from the `AZRGRAPH_CLIENT_SECRET` environment variable.
+- `tenant_id` (String) The tenant ID used for service-principal authentication or as the default tenant for Azure Default Credential. This can also be sourced from the `AZRGRAPH_TENANT_ID` environment variable.
+- `use_azure_default_credential` (Boolean) Use Azure Default Credential for authentication. The default chain tries environment credentials, workload identity, managed identity, Azure CLI, Azure Developer CLI, and Azure PowerShell, in that order. The `AZURE_TOKEN_CREDENTIALS` environment variable can restrict the chain. Complete service-principal credentials take precedence. This can also be sourced from the `AZRGRAPH_USE_AZURE_DEFAULT_CREDENTIAL` environment variable. Defaults to true.

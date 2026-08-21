@@ -1,14 +1,25 @@
+// Copyright IBM Corp. 2020, 2026
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/Kunde21/markdownfmt/v3/markdown"
+	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/yuin/goldmark"
+	meta "github.com/yuin/goldmark-meta"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
 )
 
 func providerShortName(n string) string {
@@ -27,9 +38,19 @@ func copyFile(srcPath, dstPath string, mode os.FileMode) error {
 	}
 	defer srcFile.Close()
 
+	// Ensure destination path exists for file creation
+	err = os.MkdirAll(filepath.Dir(dstPath), 0755)
+	if err != nil {
+		return err
+	}
+
 	// If the destination file already exists, we shouldn't blow it away
 	dstFile, err := os.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 	if err != nil {
+		// If the file already exists, we can skip it without returning an error.
+		if errors.Is(err, os.ErrExist) {
+			return nil
+		}
 		return err
 	}
 	defer dstFile.Close()
@@ -52,14 +73,60 @@ func removeAllExt(file string) string {
 	}
 }
 
-func writeFile(path string, data string) error {
-	dir, _ := filepath.Split(path)
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		return fmt.Errorf("unable to make dir %q: %w", dir, err)
+// resourceSchema determines whether there is a schema in the supplied schemas map which
+// has either the providerShortName or the providerShortName concatenated with the
+// templateFileName (stripped of file extension.
+func resourceSchema(schemas map[string]*tfjson.Schema, providerShortName, templateFileName string) (*tfjson.Schema, string) {
+	resName := providerShortName + "_" + removeAllExt(templateFileName)
+	if schema, ok := schemas[resName]; ok {
+		return schema, resName
 	}
 
-	err = ioutil.WriteFile(path, []byte(data), 0644)
+	if schema, ok := schemas[providerShortName]; ok {
+		return schema, providerShortName
+	}
+
+	return nil, resName
+}
+
+func actionSchema(schemas map[string]*tfjson.ActionSchema, providerShortName, templateFileName string) (*tfjson.ActionSchema, string) {
+	resName := providerShortName + "_" + removeAllExt(templateFileName)
+	if schema, ok := schemas[resName]; ok {
+		return schema, resName
+	}
+
+	if schema, ok := schemas[providerShortName]; ok {
+		return schema, providerShortName
+	}
+
+	return nil, resName
+}
+
+func resourceIdentitySchema(schemas map[string]*tfjson.IdentitySchema, providerShortName, templateFileName string) *tfjson.IdentitySchema {
+	resName := providerShortName + "_" + removeAllExt(templateFileName)
+	if schema, ok := schemas[resName]; ok {
+		return schema
+	}
+
+	if schema, ok := schemas[providerShortName]; ok {
+		return schema
+	}
+
+	return nil
+}
+
+func writeFile(path string, data string) error {
+	dir, _ := filepath.Split(path)
+
+	var err error
+	if dir != "" {
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			return fmt.Errorf("unable to make dir %q: %w", dir, err)
+		}
+	}
+
+	err = os.WriteFile(path, []byte(data), 0644)
 	if err != nil {
 		return fmt.Errorf("unable to write file %q: %w", path, err)
 	}
@@ -67,11 +134,12 @@ func writeFile(path string, data string) error {
 	return nil
 }
 
+//nolint:unparam
 func runCmd(cmd *exec.Cmd) ([]byte, error) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("error executing %q, %v", cmd.Path, cmd.Args)
-		log.Printf(string(output))
+		log.Print(string(output))
 		return nil, fmt.Errorf("error executing %q: %w", cmd.Path, err)
 	}
 	return output, nil
@@ -114,4 +182,64 @@ func fileExists(filename string) bool {
 		return false
 	}
 	return !info.IsDir()
+}
+
+func extractSchemaFromFile(path string) (*tfjson.ProviderSchemas, error) {
+	schemajson, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read file %q: %w", path, err)
+	}
+
+	schemas := &tfjson.ProviderSchemas{
+		FormatVersion: "",
+		Schemas:       nil,
+	}
+	err = schemas.UnmarshalJSON(schemajson)
+	if err != nil {
+		return nil, err
+	}
+
+	return schemas, nil
+}
+
+func newMarkdownRenderer() goldmark.Markdown {
+	mr := markdown.NewRenderer()
+	extensions := []goldmark.Extender{
+		extension.GFM,
+		meta.Meta, // We need this to skip YAML frontmatter when parsing.
+	}
+	parserOptions := []parser.Option{
+		parser.WithAttribute(), // We need this to enable # headers {#custom-ids}.
+	}
+
+	gm := goldmark.New(
+		goldmark.WithExtensions(extensions...),
+		goldmark.WithParserOptions(parserOptions...),
+		goldmark.WithRenderer(mr),
+	)
+	return gm
+}
+
+func allowedSubcategoriesFile(path string) ([]string, error) {
+	log.Printf("[DEBUG] Reading Subcategories File %s", path)
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("error opening allowed subcategories file (%s): %w", path, err)
+	}
+
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	var allowedSubcategories []string
+	for scanner.Scan() {
+		allowedSubcategories = append(allowedSubcategories, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading allowed subcategories file (%s): %w", path, err)
+	}
+
+	return allowedSubcategories, nil
 }

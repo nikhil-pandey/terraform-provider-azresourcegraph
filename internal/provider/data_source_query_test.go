@@ -37,13 +37,11 @@ func (f *fakeResourceGraphClient) Resources(_ context.Context, request armresour
 func TestDoResourceQueryPaginates(t *testing.T) {
 	next := "next-page"
 	client := &fakeResourceGraphClient{responses: []armresourcegraph.ClientResourcesResponse{
-		{QueryResponse: armresourcegraph.QueryResponse{
-			Data:      []interface{}{map[string]interface{}{"id": "one"}},
+		{
+			Data:      []any{map[string]any{"id": "one"}},
 			SkipToken: &next,
-		}},
-		{QueryResponse: armresourcegraph.QueryResponse{
-			Data: []interface{}{map[string]interface{}{"id": "two"}},
-		}},
+		},
+		{Data: []any{map[string]any{"id": "two"}}},
 	}}
 
 	results, err := doResourceQuery(context.Background(), client, armresourcegraph.QueryRequest{
@@ -70,7 +68,7 @@ func TestDoResourceQueryReturnsClientError(t *testing.T) {
 
 func TestDoResourceQueryRejectsUnexpectedResultFormat(t *testing.T) {
 	client := &fakeResourceGraphClient{responses: []armresourcegraph.ClientResourcesResponse{
-		{QueryResponse: armresourcegraph.QueryResponse{Data: map[string]interface{}{"unexpected": true}}},
+		{Data: map[string]any{"unexpected": true}},
 	}}
 
 	_, err := doResourceQuery(context.Background(), client, armresourcegraph.QueryRequest{})
@@ -81,21 +79,17 @@ func TestDoResourceQueryRejectsUnexpectedResultFormat(t *testing.T) {
 
 func TestDataSourceQueryReadProducesStableIDAndJSON(t *testing.T) {
 	client := &fakeResourceGraphClient{responses: []armresourcegraph.ClientResourcesResponse{
-		{QueryResponse: armresourcegraph.QueryResponse{
-			Data: []interface{}{map[string]interface{}{"id": "resource-one"}},
-		}},
-		{QueryResponse: armresourcegraph.QueryResponse{
-			Data: []interface{}{map[string]interface{}{"id": "resource-one"}},
-		}},
+		{Data: []any{map[string]any{"id": "resource-one"}}},
+		{Data: []any{map[string]any{"id": "resource-one"}}},
 	}}
 	resource := dataSourceQuery()
-	data := schema.TestResourceDataRaw(t, resource.Schema, map[string]interface{}{
+	data := schema.TestResourceDataRaw(t, resource.Schema, map[string]any{
 		"query":            "Resources | project id",
-		"subscription_ids": []interface{}{"subscription-b", "subscription-a"},
+		"subscription_ids": []any{"subscription-b", "subscription-a"},
 	})
 
 	var firstID string
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		if diagnostics := dataSourceQueryRead(context.Background(), data, &clients{resourceGraph: client}); diagnostics.HasError() {
 			t.Fatalf("read %d returned diagnostics: %#v", i+1, diagnostics)
 		}
@@ -120,12 +114,12 @@ func TestDataSourceQueryReadProducesStableIDAndJSON(t *testing.T) {
 		t.Fatalf("subscriptions = %#v, want %#v", gotSubscriptions, wantSubscriptions)
 	}
 
-	changed := schema.TestResourceDataRaw(t, resource.Schema, map[string]interface{}{
+	changed := schema.TestResourceDataRaw(t, resource.Schema, map[string]any{
 		"query":            "Resources | project name",
-		"subscription_ids": []interface{}{"subscription-a", "subscription-b"},
+		"subscription_ids": []any{"subscription-a", "subscription-b"},
 	})
 	changedClient := &fakeResourceGraphClient{responses: []armresourcegraph.ClientResourcesResponse{
-		{QueryResponse: armresourcegraph.QueryResponse{Data: []interface{}{}}},
+		{Data: []any{}},
 	}}
 	if diagnostics := dataSourceQueryRead(context.Background(), changed, &clients{resourceGraph: changedClient}); diagnostics.HasError() {
 		t.Fatalf("changed query returned diagnostics: %#v", diagnostics)
@@ -141,4 +135,34 @@ func dereferenceStrings(values []*string) []string {
 		result[i] = *value
 	}
 	return result
+}
+
+func TestDoResourceQueryRejectsRepeatedSkipToken(t *testing.T) {
+	repeated := "same-page"
+	client := &fakeResourceGraphClient{responses: []armresourcegraph.ClientResourcesResponse{
+		{Data: []any{}, SkipToken: &repeated},
+		{Data: []any{}, SkipToken: &repeated},
+	}}
+
+	_, err := doResourceQuery(context.Background(), client, armresourcegraph.QueryRequest{})
+	if err == nil || !strings.Contains(err.Error(), "repeated skip token") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestDataSourceQueryReadReturnsEmptyArrayWithoutMatches(t *testing.T) {
+	client := &fakeResourceGraphClient{responses: []armresourcegraph.ClientResourcesResponse{
+		{Data: []any{}},
+	}}
+	resource := dataSourceQuery()
+	data := schema.TestResourceDataRaw(t, resource.Schema, map[string]any{
+		"query": "Resources | where false",
+	})
+
+	if diagnostics := dataSourceQueryRead(context.Background(), data, &clients{resourceGraph: client}); diagnostics.HasError() {
+		t.Fatalf("read returned diagnostics: %#v", diagnostics)
+	}
+	if got := data.Get("result").(string); got != "[]" {
+		t.Fatalf("result = %q, want %q", got, "[]")
+	}
 }

@@ -64,7 +64,7 @@ type clients struct {
 	resourceGraph resourceGraphClient
 }
 
-func configure(_ context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
+func configure(_ context.Context, d *schema.ResourceData) (any, diag.Diagnostics) {
 	clientID := d.Get("client_id").(string)
 	clientSecret := d.Get("client_secret").(string)
 	tenantID := d.Get("tenant_id").(string)

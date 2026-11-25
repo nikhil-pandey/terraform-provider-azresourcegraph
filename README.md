@@ -9,7 +9,7 @@ The provider queries [Azure Resource Graph](https://learn.microsoft.com/azure/go
 ## Requirements
 
 - Terraform 1.0 or newer
-- Go 1.26 or newer for development; the repository selects Go 1.26.7 locally and CI tracks the latest Go 1.26 patch
+- Go 1.27 or newer for development; `go.mod` pins the Go 1.27.4 toolchain, which CI also uses
 
 ## Usage
 

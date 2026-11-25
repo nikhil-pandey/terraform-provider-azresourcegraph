@@ -4,7 +4,7 @@ Thanks for helping maintain the Azure Resource Graph Terraform provider.
 
 ## Development setup
 
-Install Go 1.26 or newer and Terraform 1.0 or newer, then run:
+Install Go 1.27 or newer and Terraform 1.0 or newer, then run:
 
 ```sh
 go mod download
@@ -13,7 +13,7 @@ go mod tidy -diff
 go test -race -cover ./...
 go vet ./...
 golangci-lint run ./...
-go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+go tool actionlint
 go generate ./...
 ```
 

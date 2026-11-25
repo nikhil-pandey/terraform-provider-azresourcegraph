@@ -54,7 +54,7 @@ func dataSourceQuery() *schema.Resource {
 	}
 }
 
-func dataSourceQueryRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
+func dataSourceQueryRead(ctx context.Context, d *schema.ResourceData, meta any) diag.Diagnostics {
 	client := meta.(*clients).resourceGraph
 	query := d.Get("query").(string)
 	subscriptionIDs := sortedSetValues(d, "subscription_ids")
@@ -99,8 +99,10 @@ func dataSourceQueryRead(ctx context.Context, d *schema.ResourceData, meta inter
 	return nil
 }
 
-func doResourceQuery(ctx context.Context, client resourceGraphClient, queryRequest armresourcegraph.QueryRequest) ([]interface{}, error) {
-	var results []interface{}
+func doResourceQuery(ctx context.Context, client resourceGraphClient, queryRequest armresourcegraph.QueryRequest) ([]any, error) {
+	// Start with an empty slice so a query without matches serializes to "[]" instead of "null".
+	results := []any{}
+	seenSkipTokens := map[string]bool{}
 
 	for {
 		resp, err := client.Resources(ctx, queryRequest, nil)
@@ -108,7 +110,7 @@ func doResourceQuery(ctx context.Context, client resourceGraphClient, queryReque
 			return nil, fmt.Errorf("query failed: %w", err)
 		}
 		if resp.Data != nil {
-			page, ok := resp.Data.([]interface{})
+			page, ok := resp.Data.([]any)
 			if !ok {
 				return nil, fmt.Errorf("query returned unexpected result type %T", resp.Data)
 			}
@@ -117,6 +119,11 @@ func doResourceQuery(ctx context.Context, client resourceGraphClient, queryReque
 		if resp.SkipToken == nil || *resp.SkipToken == "" {
 			break
 		}
+		if seenSkipTokens[*resp.SkipToken] {
+			return nil, fmt.Errorf("query pagination returned a repeated skip token")
+		}
+		seenSkipTokens[*resp.SkipToken] = true
+
 		if queryRequest.Options == nil {
 			queryRequest.Options = &armresourcegraph.QueryRequestOptions{}
 		}

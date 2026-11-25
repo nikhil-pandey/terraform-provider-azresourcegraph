@@ -1,0 +1,49 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "schedule": ["before 6am on monday"],
+  "timezone": "UTC",
+  "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
+  "packageRules": [
+    {
+      "description": "Keep indirect Go modules current along with direct dependencies.",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "enabled": true
+    },
+    {
+      "description": "Major Go versions are new module paths; indirect modules follow whatever their direct dependents require.",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "Batch every update into a single pull request.",
+      "matchPackageNames": ["*"],
+      "groupName": "all dependencies",
+      "groupSlug": "all",
+      "separateMajorMinor": false,
+      "separateMultipleMajor": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "description": "Security fixes join the same batched pull request instead of opening their own.",
+    "groupName": "all dependencies",
+    "groupSlug": "all"
+  },
+  "customManagers": [
+    {
+      "description": "Update versions annotated with a renovate comment on the preceding line.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\s+(?:[\\w-]+:\\s*|-\\s*)\"?(?<currentValue>[^\"\\s]+)\"?"
+      ],
+      "extractVersionTemplate": "{{#if extractVersion}}{{{extractVersion}}}{{/if}}"
+    }
+  ]
+}

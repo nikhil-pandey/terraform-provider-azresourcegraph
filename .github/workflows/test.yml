@@ -65,17 +65,20 @@ jobs:
         run: git diff --compact-summary --exit-code
 
   terraform-compatibility:
-    name: Terraform ${{ matrix.terraform }} compatibility
+    # Job names are required status checks, so they use the channel rather than the version.
+    name: Terraform ${{ matrix.channel }} compatibility
     needs: quality
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
-        terraform:
-          - 1.0.11
-          # renovate: datasource=github-releases depName=hashicorp/terraform extractVersion=^v(?<version>.+)$
-          - 1.17.2
+        include:
+          - channel: minimum
+            terraform: 1.0.11
+          - channel: latest
+            # renovate: datasource=github-releases depName=hashicorp/terraform extractVersion=^v(?<version>.+)$
+            terraform: 1.17.2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
